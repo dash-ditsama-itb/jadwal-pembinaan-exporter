@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Konversi Jadwal Pembinaan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --navy:#204074; --blue:#3a6db0; --bg:#EEF2F8; --card:#fff; --subtle:#F6F8FC; --pale:#EAF1FB; --mist:#dbe8fb;
+  --ink:#1A2233; --ink-2:#3b4558; --muted:#5d6879; --line:#E3E8F0; --line-2:#D3DCE8;
+  --ok-bg:#E3F7EA; --ok-ink:#166534; --warn-bg:#FEF3C7; --warn-ink:#92400E; --crit-bg:#FEE2E2; --crit-ink:#B91C1C;
+  --r-sm:8px; --r:10px; --r-lg:14px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5}
+main{max-width:980px;margin:0 auto;padding:32px 16px 64px;display:flex;flex-direction:column;gap:16px}
+h1{margin:0;font-size:26px;line-height:1.2;font-weight:800;color:var(--navy);letter-spacing:-.015em}
+.sub{margin:4px 0 0;color:var(--muted);font-size:13.5px;max-width:72ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:18px 20px;min-width:0}
+.card h2{margin:0 0 12px;font-size:15px;font-weight:800;color:var(--navy)}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;border:2px dashed var(--line-2);
+  border-radius:var(--r);padding:28px 16px;text-align:center;cursor:pointer;background:var(--subtle);color:var(--ink-2)}
+.drop.over,.drop:hover{border-color:var(--blue);background:var(--pale)}
+.drop b{color:var(--navy)}
+.drop input{display:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field span{font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.field input,.field select{height:38px;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:0 10px;font:inherit;color:var(--ink);background:#fff;min-width:0}
+.field small{color:var(--muted);font-size:12px}
+.sheets{display:flex;flex-wrap:wrap;gap:6px}
+.sheet{display:flex;align-items:center;gap:6px;border:1px solid var(--line-2);border-radius:var(--r-sm);padding:6px 10px;font-size:13px;cursor:pointer}
+.sheet.on{border-color:var(--blue);background:var(--pale);color:var(--navy);font-weight:600}
+.sheet.off{color:var(--muted);background:var(--subtle);cursor:default}
+.sheet em{font-style:normal;color:var(--muted);font-weight:400}
+.note{display:flex;gap:8px;border-radius:var(--r);padding:10px 12px;font-size:13px;margin-top:12px}
+.note.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.note.err{background:var(--crit-bg);color:var(--crit-ink)}
+.note.ok{background:var(--ok-bg);color:var(--ok-ink)}
+.note ul{margin:4px 0 0;padding-left:18px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.bar h2{margin:0}
+.btn{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 16px;border-radius:var(--r);border:1px solid var(--blue);
+  background:var(--blue);color:#fff;font:inherit;font-weight:700;cursor:pointer}
+.btn:hover{background:var(--navy);border-color:var(--navy)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.stats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip{background:var(--subtle);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12.5px;color:var(--ink-2)}
+.chip b{color:var(--navy)}
+.tbl{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:var(--r)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:var(--subtle);color:var(--ink-2);font-size:12px;font-weight:700}
+td.num{color:var(--muted);font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);text-align:center;padding:24px}
+.muted{color:var(--muted)}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Konversi Jadwal Pembinaan</h1>
+    <p class="sub">Ubah file "Jadwal Pembinaan / Pemesanan Link Zoom" menjadi Excel yang bisa diimpor di menu Data Kegiatan dashboard Pra-Universitas. Setiap bidang yang terisi pada suatu tanggal menjadi satu kegiatan "Jadwal Pembinaan - Bidang", dengan nama pengajarnya sebagai SDM Narasumber.</p>
+  </header>
+
+  <section class="card">
+    <h2>1. Pilih file jadwal</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept=".xlsx,.xls">
+      <b id="fileName">Klik atau seret file .xlsx ke sini</b>
+      <span class="sub" style="margin:0">File diproses di browser ini saja, tidak diunggah ke mana pun.</span>
+    </label>
+    <div class="note err" id="fileErr" hidden></div>
+  </section>
+
+  <section class="card">
+    <h2>2. Data kegiatan</h2>
+    <div class="grid">
+      <label class="field"><span>Program</span><select id="program"></select></label>
+      <label class="field"><span>PIC</span><input id="pic" type="text" placeholder="mis. Budi Santoso"></label>
+      <label class="field"><span>Tahun</span><input id="year" type="number" min="2000" max="2100">
+        <small id="yearHint">Ditebak otomatis dari nama hari di jadwal.</small></label>
+      <label class="field"><span>Awalan nama kegiatan</span><input id="prefix" type="text" value="Jadwal Pembinaan"></label>
+    </div>
+    <div id="sheetBox" hidden style="margin-top:14px">
+      <div class="field"><span>Sheet bulan yang dipakai</span></div>
+      <div class="sheets" id="sheets" style="margin-top:6px"></div>
+    </div>
+  </section>
+
+  <section class="card" id="result" hidden>
+    <div class="bar">
+      <h2>3. Hasil</h2>
+      <button class="btn" id="download" type="button">Unduh Excel import</button>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>No</th><th>Nama Kegiatan</th><th>Tanggal Kegiatan</th><th>Narasumber</th><th>Sheet</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div id="warnings"></div>
+  </section>
+</main>
+
+<script id="core">
+// Program monitoring (sama dengan app/config.js); `code` = nilai kolom Program pada file Ekspor/Impor backend
+const PROGRAMS = [
+  { code: "SIAP", label: "SIAP ITB" },
+  { code: "INSPIRASI_EDQ", label: "INSPIRASI EduQuest" },
+  { code: "INSPIRASI_SCD", label: "INSPIRASI SCD" },
+  { code: "OSN", label: "OSN" },
+  { code: "OPSI", label: "OPSI" },
+  { code: "RISET", label: "Riset" },
+  { code: "BTI", label: "BTI" },
+  { code: "WIT", label: "WIT" },
+  { code: "MAUNG", label: "MAUNG" },
+];
+
+// kolom sama dengan file Ekspor Data Kegiatan, agar langsung bisa diimpor
+const HEADER = [
+  "ID", "Waktu Input", "Program", "PIC", "Mode", "Tanggal Kegiatan", "Nama Kegiatan", "Fase Kegiatan", "Lokasi / Alamat",
+  "SDM Narasumber (jumlah)", "SDM Narasumber (daftar nama)",
+];
+
+const MONTHS = {
+  januari: 1, februari: 2, maret: 3, april: 4, mei: 5, juni: 6, juli: 7,
+  agustus: 8, september: 9, oktober: 10, november: 11, nopember: 11, desember: 12,
+};
+const DAYS = ["minggu", "senin", "selasa", "rabu", "kamis", "jumat", "sabtu"];
+
+const text = (v) => String(v ?? "").replace(/\s+/g, " ").trim();
+const word = (v) => text(v).toLowerCase().replace(/[^a-z]/g, "");
+const monthOf = (name) => MONTHS[word(name)];
+const dayOf = (v) => DAYS.indexOf(word(v));
+
+// "21" atau "11 Juni" (tanggal di bulan lain)
+function parseDateLabel(v) {
+  const m = /^(\d{1,2})(?:\s+([a-zA-Z]+))?$/.exec(text(v));
+  if (!m) return null;
+  const month = m[2] ? monthOf(m[2]) : undefined;
+  if (m[2] && !month) return null;
+  return { day: +m[1], month };
+}
+
+// narasumber = isi baris hari/tanggal (bukan Zoom/Rekaman) yang bukan jam; "15.00 - 17.00 (Nama)" -> Nama
+const TIME_RE = /\d{1,2}\s*[.:;]\s*\d{2}/;
+function peopleOf(values) {
+  const people = values.map(text).filter((v) => v.length > 1).flatMap((v) => {
+    if (!TIME_RE.test(v)) return [v];
+    return [...v.matchAll(/\(([^)]+)\)/g)].map((m) => text(m[1])).filter((n) => n && !TIME_RE.test(n));
+  });
+  return [...new Set(people)];
+}
+
+/** Satu sheet bulan -> daftar hari: { dayName, dayIndex, day, month, subjects[], row } */
+function parseMonthSheet(ws, sheetMonth) {
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true, blankrows: true });
+  let headerRow = -1, labelCol = -1;
+  for (let r = 0; r < rows.length && headerRow < 0; r++) {
+    const c = rows[r].findIndex((v) => word(v) === "tanggal");
+    if (c >= 0) { headerRow = r; labelCol = c; }
+  }
+  if (headerRow < 0) return { error: 'Baris judul "Tanggal" dan nama bidang tidak ditemukan.' };
+
+  const subjects = rows[headerRow]
+    .map((v, c) => ({ c, name: text(v) }))
+    .filter((s) => s.c > labelCol && s.name);
+
+  // satu hari = baris nama hari sampai baris "Rekaman" (termasuk baris tanggal, Zoom, dan baris gabungan di antaranya);
+  // baris setelah "Rekaman" (total tanpa label, pembatas "****") bukan bagian dari hari itu
+  const days = [];
+  let cur = null;
+  for (let r = headerRow + 1; r < rows.length; r++) {
+    const label = text(rows[r][labelCol]);
+    const dayIndex = dayOf(label);
+    if (label && dayIndex >= 0) {
+      cur = { dayName: label, dayIndex, day: null, month: sheetMonth, rows: [r], infoRows: [r], row: r + 1 };
+      days.push(cur);
+      continue;
+    }
+    if (!cur) continue;
+    const date = cur.day === null && parseDateLabel(label);
+    if (date) {
+      cur.day = date.day;
+      cur.month = date.month || sheetMonth;
+    } else if (label && !/^(zoom|rekaman)$/i.test(label)) {
+      cur = null; // mis. baris "Total Juni"
+      continue;
+    }
+    cur.rows.push(r);
+    if (!/^(zoom|rekaman)$/i.test(label)) cur.infoRows.push(r);
+    if (/^rekaman$/i.test(label)) cur = null;
+  }
+
+  // bidang terisi = ada isi minimal 2 karakter (salah ketik 1 huruf seperti "u" diabaikan)
+  return {
+    days: days.map((d) => ({
+      ...d,
+      subjects: subjects
+        .filter((s) => d.rows.some((r) => text(rows[r][s.c]).length > 1))
+        .map((s) => ({ name: s.name, people: peopleOf(d.infoRows.map((r) => rows[r][s.c])) })),
+    })),
+  };
+}
+
+const isoDate = (y, m, d) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+const showDate = (y, m, d) => `${String(d).padStart(2, "0")}-${String(m).padStart(2, "0")}-${y}`;
+const weekday = (y, m, d) => new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+const validDate = (y, m, d) => {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+};
+
+/** Tahun dengan nama hari paling cocok (jadwal tidak mencantumkan tahun). */
+function guessYear(parsed, around) {
+  let best = around, bestHits = -1;
+  for (let y = around - 3; y <= around + 1; y++) {
+    const hits = parsed.flatMap((p) => p.days)
+      .filter((d) => d.day && validDate(y, d.month, d.day) && weekday(y, d.month, d.day) === d.dayIndex).length;
+    if (hits > bestHits) { best = y; bestHits = hits; }
+  }
+  return best;
+}
+
+/** -> { rows: [{ name, people, iso, shown, sheet }], warnings: [] } */
+function buildRows(parsed, { year, prefix }) {
+  const rows = [], warnings = [];
+  for (const p of parsed) {
+    for (const d of p.days) {
+      if (!d.subjects.length) continue;
+      if (!d.day || !validDate(year, d.month, d.day)) {
+        warnings.push(`${p.sheet} baris ${d.row}: tanggal untuk "${d.dayName}" tidak terbaca, dilewati.`);
+        continue;
+      }
+      if (weekday(year, d.month, d.day) !== d.dayIndex) {
+        warnings.push(`${p.sheet} baris ${d.row}: ${showDate(year, d.month, d.day)} bukan hari ${d.dayName} di tahun ${year}.`);
+      }
+      for (const s of d.subjects) {
+        rows.push({
+          name: `${prefix} - ${s.name}`, people: s.people, iso: isoDate(year, d.month, d.day), shown: showDate(year, d.month, d.day),
+          sheet: p.sheet, year, month: d.month, day: d.day,
+        });
+      }
+    }
+  }
+  rows.sort((a, b) => a.iso.localeCompare(b.iso));
+  return { rows, warnings };
+}
+
+/** Workbook siap impor (sheet "DataMasuk", kolom sama dengan Ekspor). */
+function buildWorkbook(rows, { program, pic }) {
+  const aoa = [HEADER, ...rows.map((r) => [
+    "", "", program, pic, "On-Going", r.iso, r.name, "", "", r.people.length || "", r.people.join(", "),
+  ])];
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // tanggal sebagai nilai tanggal Excel (tanpa jam, tanpa geser zona waktu)
+  rows.forEach((r, i) => {
+    const ref = XLSX.utils.encode_cell({ r: i + 1, c: HEADER.indexOf("Tanggal Kegiatan") });
+    ws[ref] = { t: "n", v: Date.UTC(r.year, r.month - 1, r.day) / 86400000 + 25569, z: "dd-mm-yyyy" };
+  });
+  ws["!cols"] = HEADER.map((h) => ({ wch: h === "Nama Kegiatan" || h.includes("daftar nama") ? 36 : h === "Tanggal Kegiatan" ? 16 : 14 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "DataMasuk");
+  return wb;
+}
+</script>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { wb: null, fileName: "", parsed: [], selected: new Set(), yearTouched: false };
+
+$("program").innerHTML = PROGRAMS.map((p) => `<option value="${p.code}">${p.label}</option>`).join("");
+$("program").value = "OSN";
+$("year").value = new Date().getFullYear();
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function showError(msg) {
+  $("fileErr").hidden = !msg;
+  $("fileErr").textContent = msg || "";
+}
+
+async function load(file) {
+  showError("");
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+    state.wb = wb;
+    state.fileName = file.name;
+    state.parsed = wb.SheetNames.map((sheet) => {
+      const month = monthOf(sheet);
+      if (!month) return { sheet, skip: "bukan sheet bulan" };
+      const out = parseMonthSheet(wb.Sheets[sheet], month);
+      return out.error ? { sheet, skip: out.error } : { sheet, month, days: out.days };
+    });
+    const months = state.parsed.filter((p) => !p.skip);
+    if (!months.length) {
+      showError("Tidak ada sheet bernama bulan (Januari–Desember) dengan tabel jadwal di file ini.");
+    }
+    state.selected = new Set(months.map((p) => p.sheet));
+    if (!state.yearTouched && months.length) $("year").value = guessYear(months, new Date().getFullYear());
+    $("fileName").textContent = file.name;
+    render();
+  } catch (e) {
+    console.error(e);
+    showError("File tidak bisa dibaca. Pastikan formatnya .xlsx.");
+  }
+}
+
+function current() {
+  const parsed = state.parsed.filter((p) => !p.skip && state.selected.has(p.sheet));
+  return buildRows(parsed, { year: Number($("year").value), prefix: text($("prefix").value) || "Jadwal Pembinaan" });
+}
+
+function render() {
+  $("sheetBox").hidden = !state.wb;
+  $("sheets").innerHTML = state.parsed.map((p) => {
+    if (p.skip) return `<span class="sheet off" title="${esc(p.skip)}">${esc(p.sheet)} <em>(dilewati)</em></span>`;
+    const on = state.selected.has(p.sheet);
+    const count = p.days.reduce((n, d) => n + d.subjects.length, 0);
+    return `<label class="sheet${on ? " on" : ""}"><input type="checkbox" data-sheet="${esc(p.sheet)}"${on ? " checked" : ""}>${esc(p.sheet)} <em>${count} sesi</em></label>`;
+  }).join("");
+
+  const year = Number($("year").value);
+  if (!state.wb || !year) { $("result").hidden = true; return; }
+  const { rows, warnings } = current();
+  $("result").hidden = false;
+  $("download").disabled = !rows.length;
+
+  const bySubject = {};
+  rows.forEach((r) => { bySubject[r.name] = (bySubject[r.name] || 0) + 1; });
+  $("stats").innerHTML = `<span class="chip"><b>${rows.length}</b> kegiatan</span>` +
+    Object.entries(bySubject).map(([n, c]) => `<span class="chip">${esc(n.split(" - ").pop())} <b>${c}</b></span>`).join("");
+
+  $("rows").innerHTML = rows.length
+    ? rows.map((r, i) => `<tr><td class="num">${i + 1}</td><td>${esc(r.name)}</td><td>${r.shown}</td><td>${esc(r.people.join(", ")) || '<span class="muted">–</span>'}</td><td>${esc(r.sheet)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">Tidak ada bidang yang terisi pada sheet yang dipilih.</td></tr>`;
+
+  $("warnings").innerHTML = warnings.length
+    ? `<div class="note warn"><div><b>Periksa ${warnings.length} catatan:</b><ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join("")}</ul></div></div>`
+    : rows.length ? `<div class="note ok">Semua tanggal cocok dengan nama harinya di tahun ${year}.</div>` : "";
+}
+
+$("file").addEventListener("change", (e) => e.target.files[0] && load(e.target.files[0]));
+const drop = $("drop");
+drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (e) => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+});
+$("sheets").addEventListener("change", (e) => {
+  const sheet = e.target.dataset.sheet;
+  if (!sheet) return;
+  if (e.target.checked) state.selected.add(sheet); else state.selected.delete(sheet);
+  render();
+});
+$("year").addEventListener("input", () => { state.yearTouched = true; render(); });
+$("prefix").addEventListener("input", render);
+
+$("download").addEventListener("click", () => {
+  const { rows } = current();
+  if (!rows.length) return;
+  const program = $("program").value;
+  const wb = buildWorkbook(rows, { program, pic: text($("pic").value) });
+  XLSX.writeFile(wb, `Impor Kegiatan ${program} - Jadwal Pembinaan ${$("year").value}.xlsx`);
+});
+</script>
+</body>
+</html>
